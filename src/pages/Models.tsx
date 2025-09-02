@@ -191,17 +191,6 @@ const Models = () => {
                   onChange={(e) => setFormData(prev => ({ ...prev, modelName: e.target.value }))}
                 />
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea 
-                  id="description" 
-                  placeholder="Brief description of your model and its capabilities"
-                  className="min-h-[80px]"
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                />
-              </div>
 
               <div className="space-y-2">
                 <Label>Docker Container</Label>
