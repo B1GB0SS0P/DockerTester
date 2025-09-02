@@ -1,4 +1,4 @@
-# SCVU Model Testing Platform - Setup Guide
+# Model Testing Platform - Setup Guide
 
 This guide will help you set up the SCVU Model Testing Platform with Docker container management capabilities.
 
