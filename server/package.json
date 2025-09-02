@@ -1,0 +1,32 @@
+{
+  "name": "scvu-model-testing-backend",
+  "version": "1.0.0",
+  "description": "Backend server for SCVU Model Testing platform",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest"
+  },
+  "keywords": ["docker", "computer-vision", "model-testing", "api"],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "node-docker-api": "^1.1.22",
+    "fs-extra": "^11.1.1",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.1",
+    "tar": "^6.2.0",
+    "form-data": "^4.0.0",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

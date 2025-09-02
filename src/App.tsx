@@ -2,14 +2,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
 import Dashboard from "./pages/Dashboard";
 import Models from "./pages/Models";
 import Testing from "./pages/Testing";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
-import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -28,7 +27,7 @@ const App = () => (
               <Route path="/testing" element={<Testing />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<NotFound />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
         </div>

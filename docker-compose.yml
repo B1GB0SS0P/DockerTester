@@ -1,0 +1,41 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./public/uploads:/app/public/uploads
+      - docker_data:/var/lib/docker
+    networks:
+      - scvu_network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001/api
+    depends_on:
+      - backend
+    networks:
+      - scvu_network
+    restart: unless-stopped
+
+networks:
+  scvu_network:
+    driver: bridge
+
+volumes:
+  docker_data:

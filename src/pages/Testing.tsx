@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,67 +13,46 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Target
+  Target,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiService, type Model, type TestResult } from "@/lib/api";
 
 const Testing = () => {
   const { toast } = useToast();
-  const [selectedModel, setSelectedModel] = useState("");
+  const [models, setModels] = useState<Model[]>([]);
+  const [selectedModel, setSelectedModel] = useState<Model | null>(null);
   const [testImages, setTestImages] = useState<File[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const availableModels = [
-    { id: "yolo8", name: "YOLOv8 Object Detection", status: "running" },
-    { id: "resnet", name: "ResNet50 Classification", status: "stopped" },
-    { id: "maskrcnn", name: "MaskRCNN Segmentation", status: "running" },
-    { id: "efficientnet", name: "EfficientNet Classification", status: "stopped" },
-  ];
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const testResults = [
-    {
-      id: 1,
-      filename: "dog_running.jpg",
-      model: "YOLOv8 Object Detection",
-      confidence: 95.7,
-      prediction: "Dog, Person",
-      inference_time: "42ms",
-      status: "completed",
-      timestamp: "2024-01-15 14:30:22"
-    },
-    {
-      id: 2,
-      filename: "cat_sitting.jpg",
-      model: "ResNet50 Classification",
-      confidence: 88.3,
-      prediction: "Cat",
-      inference_time: "23ms",
-      status: "completed",
-      timestamp: "2024-01-15 14:28:15"
-    },
-    {
-      id: 3,
-      filename: "street_scene.jpg",
-      model: "YOLOv8 Object Detection",
-      confidence: 92.1,
-      prediction: "Car, Traffic Light, Building",
-      inference_time: "48ms",
-      status: "completed",
-      timestamp: "2024-01-15 14:25:33"
-    },
-    {
-      id: 4,
-      filename: "birds_flying.jpg",
-      model: "MaskRCNN Segmentation",
-      confidence: 89.5,
-      prediction: "Bird (3 instances)",
-      inference_time: "165ms",
-      status: "processing",
-      timestamp: "2024-01-15 14:32:01"
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [modelsData, resultsData] = await Promise.all([
+        apiService.getModels(),
+        apiService.getTestResults()
+      ]);
+      setModels(modelsData);
+      setTestResults(resultsData);
+    } catch (error) {
+      toast({
+        title: "Error Loading Data",
+        description: error instanceof Error ? error.message : "Failed to load data",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
 
-  const runTest = () => {
+  const runTest = async () => {
     if (!selectedModel || testImages.length === 0) {
       toast({
         title: "Missing Information",
@@ -83,17 +62,70 @@ const Testing = () => {
       return;
     }
 
-    setIsRunning(true);
-    
-    // Simulate test processing
-    setTimeout(() => {
-      setIsRunning(false);
+    if (selectedModel.status !== 'running') {
+      toast({
+        title: "Model Not Running",
+        description: "Please start the selected model before running tests.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setIsRunning(true);
+      
+      const response = await apiService.runTest(selectedModel.id, testImages);
+      
       toast({
         title: "Test Completed",
-        description: `Successfully tested ${testImages.length} images with ${selectedModel}.`,
+        description: response.message,
       });
-    }, 3000);
+
+      // Add new results to the list
+      setTestResults(prev => [...response.results, ...prev]);
+      
+      // Clear test images
+      setTestImages([]);
+    } catch (error) {
+      toast({
+        title: "Test Failed",
+        description: error instanceof Error ? error.message : "Failed to run test",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRunning(false);
+    }
   };
+
+  const exportResults = () => {
+    const csv = [
+      'Filename,Model,Prediction,Confidence,Inference Time,Status,Timestamp',
+      ...testResults.map(result => 
+        `"${result.filename}","${result.model}","${result.prediction}",${result.confidence},"${result.inference_time}","${result.status}","${result.timestamp}"`
+      )
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `test-results-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const runningModels = models.filter(model => model.status === 'running');
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="ml-2">Loading testing interface...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -117,23 +149,38 @@ const Testing = () => {
             <CardContent className="space-y-6">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Select Model</label>
-                <Select value={selectedModel} onValueChange={setSelectedModel}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a model to test" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableModels.map((model) => (
-                      <SelectItem key={model.id} value={model.name} disabled={model.status === "stopped"}>
-                        <div className="flex items-center space-x-2">
-                          <span>{model.name}</span>
-                          <Badge variant={model.status === "running" ? "default" : "secondary"} className="ml-2">
-                            {model.status}
-                          </Badge>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {runningModels.length === 0 ? (
+                  <div className="p-4 border rounded-lg text-center">
+                    <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No running models available. Please start a model from the Models page.
+                    </p>
+                  </div>
+                ) : (
+                  <Select 
+                    value={selectedModel?.id || ""} 
+                    onValueChange={(value) => {
+                      const model = models.find(m => m.id === value);
+                      setSelectedModel(model || null);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a model to test" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {runningModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          <div className="flex items-center space-x-2">
+                            <span>{model.name}</span>
+                            <Badge variant="default" className="ml-2">
+                              running
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -144,16 +191,21 @@ const Testing = () => {
                   onFilesChange={setTestImages}
                   placeholder="Upload images for testing"
                 />
+                {testImages.length > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {testImages.length} image{testImages.length !== 1 ? 's' : ''} selected
+                  </p>
+                )}
               </div>
 
               <Button 
                 onClick={runTest} 
-                disabled={isRunning || !selectedModel || testImages.length === 0}
+                disabled={isRunning || !selectedModel || testImages.length === 0 || runningModels.length === 0}
                 className="w-full"
               >
                 {isRunning ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Processing...
                   </>
                 ) : (
@@ -168,7 +220,7 @@ const Testing = () => {
                 <div className="space-y-2">
                   <Progress value={65} className="w-full" />
                   <p className="text-sm text-muted-foreground text-center">
-                    Processing image 3 of 5...
+                    Processing images...
                   </p>
                 </div>
               )}
@@ -187,72 +239,97 @@ const Testing = () => {
                     Recent model testing results and predictions
                   </CardDescription>
                 </div>
-                <Button variant="outline" size="sm">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={exportResults}
+                  disabled={testResults.length === 0}
+                >
                   <Download className="h-4 w-4 mr-2" />
                   Export Results
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {testResults.map((result) => (
-                  <div key={result.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center space-x-3">
-                        <ImageIcon className="h-5 w-5 text-muted-foreground" />
+              {testResults.length === 0 ? (
+                <div className="text-center py-12">
+                  <ImageIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No Test Results</h3>
+                  <p className="text-muted-foreground">
+                    Run your first test to see results here
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                  {testResults.map((result) => (
+                    <div key={result.id} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center space-x-3">
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <div className="font-medium">{result.filename}</div>
+                            <div className="text-sm text-muted-foreground">{result.model}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {result.status === "completed" ? (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          ) : result.status === "processing" ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-red-500" />
+                          )}
+                          <Badge variant={
+                            result.status === "completed" ? "default" : 
+                            result.status === "processing" ? "secondary" : 
+                            "destructive"
+                          }>
+                            {result.status}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <div>
-                          <div className="font-medium">{result.filename}</div>
-                          <div className="text-sm text-muted-foreground">{result.model}</div>
+                          <div className="text-muted-foreground">Prediction</div>
+                          <div className="font-medium">{result.prediction}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Confidence</div>
+                          <div className="font-medium flex items-center">
+                            <Target className="h-3 w-3 mr-1" />
+                            {result.confidence.toFixed(1)}%
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Inference Time</div>
+                          <div className="font-medium flex items-center">
+                            <Clock className="h-3 w-3 mr-1" />
+                            {result.inference_time}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Actions</div>
+                          <Button variant="outline" size="sm">
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        {result.status === "completed" ? (
-                          <CheckCircle className="h-4 w-4 text-success" />
-                        ) : result.status === "processing" ? (
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                        ) : (
-                          <AlertCircle className="h-4 w-4 text-destructive" />
-                        )}
-                        <Badge variant={result.status === "completed" ? "default" : "secondary"}>
-                          {result.status}
-                        </Badge>
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <div className="text-muted-foreground">Prediction</div>
-                        <div className="font-medium">{result.prediction}</div>
+                      <div className="mt-3 text-xs text-muted-foreground">
+                        Tested at {result.timestamp}
                       </div>
-                      <div>
-                        <div className="text-muted-foreground">Confidence</div>
-                        <div className="font-medium flex items-center">
-                          <Target className="h-3 w-3 mr-1" />
-                          {result.confidence}%
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Inference Time</div>
-                        <div className="font-medium flex items-center">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {result.inference_time}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-muted-foreground">Actions</div>
-                        <Button variant="outline" size="sm">
-                          <Eye className="h-3 w-3 mr-1" />
-                          View
-                        </Button>
-                      </div>
-                    </div>
 
-                    <div className="mt-3 text-xs text-muted-foreground">
-                      Tested at {result.timestamp}
+                      {result.error && (
+                        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">
+                          Error: {result.error}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
